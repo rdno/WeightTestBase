@@ -1,0 +1,101 @@
+import matplotlib
+matplotlib.use('Agg')   # NOQA
+import os
+from pprint import pprint
+from pytomo3d.window.window_weights import \
+    calculate_receiver_weights_interface, \
+    calculate_category_weights_interface, \
+    combine_receiver_and_category_weights
+from utils import assert_file_exists, get_category_ratio, analyze, \
+    dump_weights
+
+
+def construct_path_info():
+    period = ["17_40", "40_100", "90_250"]
+    datadir = "../data"
+    eventname = "C201001122153A"
+
+    path = {}
+    for p in period:
+        station_file = os.path.join(datadir, "stations", "%s.stations.json"
+                                    % (eventname))
+        assert_file_exists(station_file)
+        window_file = os.path.join(datadir, "windows", "%s.%s.windows.json"
+                                   % (eventname, p))
+        assert_file_exists(window_file)
+        output_file = os.path.join(".", "weights", "%s.%s"
+                                   % (eventname, p), "weight.json")
+        path[p] = {"station_file": station_file, "window_file": window_file,
+                   "output_file": output_file}
+
+    return path
+
+
+def get_receiver_weights(src_info, path, param):
+    rec_weights = {}
+    rec_wcounts = {}
+    cat_wcounts = {}
+    for p, pinfo in path.iteritems():
+        results = calculate_receiver_weights_interface(
+            src_info, pinfo, param)
+        rec_weights[p] = results["rec_weights"]
+        rec_wcounts[p] = results["rec_wcounts"]
+        cat_wcounts[p] = results["cat_wcounts"]
+
+    return rec_weights, rec_wcounts, cat_wcounts
+
+
+def get_category_weights(cat_wcounts):
+    print("category window counts:")
+    pprint(cat_wcounts)
+    cat_ratio = get_category_ratio(cat_wcounts)
+    print("category weight ratio")
+    pprint(cat_ratio)
+
+    param = {"flag": True, "ratio": cat_ratio}
+    cat_weights = calculate_category_weights_interface(
+        param, cat_wcounts)
+    print("category final weights")
+    pprint(cat_weights)
+
+    return cat_weights
+
+
+def get_source_weights(cat_wcounts):
+    """
+    Only one source so there is only normlization
+    """
+    nwins_total = 0
+    for p, pinfo in cat_wcounts.iteritems():
+        for c, cinfo in pinfo.iteritems():
+            nwins_total += cinfo
+    print("total number of windows: %s" % nwins_total)
+    src_weight = 1.0 / nwins_total
+    print("source weight: %f" % src_weight)
+    return src_weight
+
+
+def main():
+
+    src_info = {"latitude": 0.0, "longitude": 0.0, "depth_in_m": 10000.0}
+    param = {"flag": True, "plot": True, "search_ratio": 0.3}
+    path = construct_path_info()
+    pprint(path)
+    # get receiver weighting
+    rec_weights, rec_wcounts, cat_wcounts = \
+        get_receiver_weights(src_info, path, param)
+
+    cat_weights = get_category_weights(cat_wcounts)
+
+    src_weights = get_source_weights(cat_wcounts)
+
+    weights = combine_receiver_and_category_weights(
+        rec_weights, cat_weights)
+
+    analyze(weights, rec_wcounts, cat_wcounts, src_weights)
+
+    dump_weights(weights, path)
+
+
+if __name__ == "__main__":
+    main()
