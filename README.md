@@ -1,7 +1,7 @@
 ## Directory:
-1) data: input data
-2) complex: complex weighting schema
-3) simple: simple weighting schema
+  1) data: input data  
+  2) complex: complex weighting schema  
+  3) simple: simple weighting schema   
 
 ## Usage:
 #### 1. complex:
